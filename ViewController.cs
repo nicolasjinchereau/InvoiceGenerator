@@ -6,14 +6,13 @@
 using System;
 using AppKit;
 using Foundation;
-using Ionic.Zip;
-using Ionic.Zlib;
 using System.Linq;
 using System.IO;
 using JsonFx;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Text;
+using Novacode;
 
 namespace InvoiceGenerator
 {
@@ -209,40 +208,23 @@ namespace InvoiceGenerator
             {
                 string path = NSBundle.MainBundle.PathForResource("template.docx", null);
 
-                using(ZipFile zip = ZipFile.Read(path))
+                using(DocX doc = DocX.Load(path))
                 {
-                    var entry = zip.SelectEntries("name = document.xml", "word/").First();
-                    var stream = new MemoryStream(4096);
-                    entry.Extract(stream);
-                    stream.Position = 0;
-                    var content = new StreamReader(stream).ReadToEnd();
-
-                    content = content.Replace("[DATE]", date.ToString("yyyy-MM-dd"));
-                    content = content.Replace("[INVOICE]", invoiceNumberString);
-                    content = content.Replace("[CONSULTANT]", ConvertLineEndingsToDocxTags(consultantText.Value));
-                    content = content.Replace("[CLIENT]", ConvertLineEndingsToDocxTags(clientText.Value));
-                    content = content.Replace("[SERVICE]", ConvertLineEndingsToDocxTags(servicesText.Value));
-                    content = content.Replace("[ITEM]", subtotalText.StringValue);
-                    content = content.Replace("[TOTAL_HOURS]", totalHoursText.StringValue);
-                    content = content.Replace("[SUBTOT]", subtotalText.StringValue);
-                    content = content.Replace("[TAX]", taxAmountText.StringValue);
-                    content = content.Replace("[TOTAL]", totalPriceText.StringValue);
-
-                    zip.UpdateEntry("word/document.xml", content);
-                    zip.CompressionLevel = CompressionLevel.BestCompression;
-                    zip.Save(sp.Url.Path);
+                    doc.ReplaceText("[DATE]", date.ToString("yyyy-MM-dd"));
+                    doc.ReplaceText("[INVOICE]", invoiceNumberString);
+                    doc.ReplaceText("[CONSULTANT]", consultantText.Value);
+                    doc.ReplaceText("[CLIENT]", clientText.Value);
+                    doc.ReplaceText("[SERVICE]", servicesText.Value);
+                    doc.ReplaceText("[ITEM]", subtotalText.StringValue);
+                    doc.ReplaceText("[TOTAL_HOURS]", totalHoursText.StringValue);
+                    doc.ReplaceText("[SUBTOT]", subtotalText.StringValue);
+                    doc.ReplaceText("[TAX]", taxAmountText.StringValue);
+                    doc.ReplaceText("[TOTAL]", totalPriceText.StringValue);
+                    doc.SaveAs(sp.Url.Path);
                 }
 
                 Save();
             }
-        }
-
-        string ConvertLineEndingsToDocxTags(string str)
-        {
-            var sb = new StringBuilder(str.Length * 2);
-            sb.Append("</w:t><w:t xml:space=\"preserve\">");
-            sb.Append(Regex.Replace(str, @"\r\n|\n\r|\n|\r", "</w:t><w:br/><w:t xml:space=\"preserve\">"));
-            return sb.ToString();
         }
 
         public override NSObject RepresentedObject {
