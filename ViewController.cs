@@ -202,6 +202,10 @@ namespace InvoiceGenerator
             var sel = hoursTable.SelectedRow;
             sessionListDataSource.sessions = editor.Document.sessions;
             hoursTable.ReloadData();
+
+            if(sel >= 0 && sel == hoursTable.RowCount)
+                --sel;
+            
             hoursTable.SelectRow(sel, false);
         }
 
