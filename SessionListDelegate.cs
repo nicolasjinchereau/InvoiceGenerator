@@ -46,6 +46,8 @@ namespace InvoiceGenerator
                         view.DateValue = (NSDate)session.start;
                         view.Activated += (s, e) => {
                             OnSessionStartChanged(view, session);
+                            var field = tableView.GetView(2, row, true) as NSTextField;
+                            if(field != null) field.FloatValue = session.TotalHours;
                         };
 
                         ret = view;
@@ -61,6 +63,8 @@ namespace InvoiceGenerator
                         view.DateValue = (NSDate)session.finish;
                         view.Activated += (s, e) => {
                             OnSessionFinishChanged(view, session);
+                            var field = tableView.GetView(2, row, true) as NSTextField;
+                            if(field != null) field.FloatValue = session.TotalHours;
                         };
 
                         ret = view;
