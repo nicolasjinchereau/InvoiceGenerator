@@ -86,6 +86,10 @@
       <DependentUpon>AppDelegate.cs</DependentUpon>
     </Compile>
     <Compile Include="MessageBox.cs" />
+    <Compile Include="InvoiceEditor.cs" />
+    <Compile Include="InvoiceDocument.cs" />
+    <Compile Include="SessionListDataSource.cs" />
+    <Compile Include="SessionListDelegate.cs" />
   </ItemGroup>
   <ItemGroup>
     <InterfaceDefinition Include="Main.storyboard" />

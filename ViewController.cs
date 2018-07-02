@@ -6,31 +6,23 @@
 using System;
 using AppKit;
 using Foundation;
-using System.Linq;
-using System.IO;
-using JsonFx;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
-using System.Text;
-using Novacode;
+using System.IO;
 
 namespace InvoiceGenerator
 {
-    public class Invoice
-    {
-        public DateTime date;
-        public int invoiceNumber;
-        public string consultant;
-        public string client;
-        public string filename;
-        public string services;
-        public float[] hours;
-        public float rate;
-        public float taxRate;
-    }
-
     public partial class ViewController : NSViewController
     {
+        public const string WindowTitle = "Invoice Generator";
+
+        InvoiceEditor editor;
+        SessionListDataSource sessionListDataSource;
+        SessionListDelegate sessionListDelegate;
+
+        AppDelegate AppDelegate {
+            get { return NSApplication.SharedApplication.Delegate as AppDelegate; }
+        }
+
         public ViewController(IntPtr handle) : base(handle)
         {
         }
@@ -39,121 +31,214 @@ namespace InvoiceGenerator
         {
             base.ViewDidLoad();
 
-            invoiceDate.DateValue = (NSDate)DateTime.Now;
-            hoursText.Activated += UpdatePrice;
-            rateText.Activated += UpdatePrice;
-            taxRateText.Activated += UpdatePrice;
-            invoiceNumberText.EditingEnded += OnEditingEnded;
-            hoursText.EditingEnded += OnEditingEnded;
-            rateText.EditingEnded += OnEditingEnded;
-            taxRateText.EditingEnded += OnEditingEnded;
-            saveButton.Activated += OnSavePressed;
+            invoiceDate.Activated += OnDateChanged;
+            invoiceNumberText.Changed += OnInvoiceNumberChanged;
             incrementButton.Activated += OnIncrementPressed;
-            revertButton.Activated += OnRevertPressed;
+            consultantText.TextDidChange += OnConsultantChanged;
+            clientText.TextDidChange += OnClientChanged;
+            servicesText.TextDidChange += OnServicesChanged;
+            rateText.Changed += OnRateChanged;
+            taxRateText.Changed += OnTaxRateChanged;
+            filenameText.Changed += OnFilenameChanged;
+            exportButton.Activated += OnExportPressed;
+            addSessionButton.Activated += OnAddSessionPressed;
+            removeSessionButton.Activated += OnRemoveSessionPressed;
 
-            Load();
+            sessionListDataSource = new SessionListDataSource();
+            sessionListDelegate = new SessionListDelegate(sessionListDataSource);
+            sessionListDelegate.SessionStartChanged += OnSessionsStartChanged;
+            sessionListDelegate.SessionFinishChanged += OnSessionsFinishChanged;
 
-            UpdatePrice(null, null);
+            hoursTable.DataSource = sessionListDataSource;
+            hoursTable.Delegate = sessionListDelegate;
+            hoursTable.AllowsMultipleSelection = false;
+
+            editor = (NSApplication.SharedApplication.Delegate as AppDelegate).Editor;
+        }
+
+        public override void ViewWillAppear()
+        {
+            base.ViewWillAppear();
+            RefreshAll();
+        }
+
+        public override void ViewWillDisappear()
+        {
+            base.ViewWillDisappear();
         }
 
         public override void ViewDidDisappear()
         {
             base.ViewDidDisappear();
-            Save();
         }
 
-        void OnIncrementPressed(object sender, EventArgs args) {
-            ++invoiceNumberText.IntValue;
-        }
-
-        void OnRevertPressed(object sender, EventArgs args) {
-            Load();
-        }
-
-        void OnEditingEnded(object sender, EventArgs args)
+        void OnDateChanged(object sender, EventArgs args)
         {
-            var errorColor = NSColor.FromRgb(0.9f, 0.0f, 0.0f);
-            var validFont = NSFont.SystemFontOfSize(NSFont.SystemFontSize, 0);
-            var errorFont = NSFont.SystemFontOfSize(NSFont.SystemFontSize, 1);
-
-            int intResult;
-            float floatResult;
-
-            var invoiceValid = int.TryParse(invoiceNumberText.StringValue, out intResult);
-            var hoursValid = SplitFloatCSV(hoursText.StringValue).Length > 0;
-            var rateValid = float.TryParse(rateText.StringValue, out floatResult);
-            var taxRateValid = float.TryParse(taxRateText.StringValue, out floatResult);
-
-            invoiceNumberText.TextColor = invoiceValid ? NSColor.ControlText : errorColor;
-            invoiceNumberText.Font = invoiceValid ? validFont : errorFont;
-            hoursText.TextColor = hoursValid ? NSColor.ControlText : errorColor;
-            hoursText.Font = hoursValid ? validFont : errorFont;
-            rateText.Font = rateValid ? validFont : errorFont;
-            rateText.TextColor = rateValid ? NSColor.ControlText : errorColor;
-            taxRateText.TextColor = taxRateValid ? NSColor.ControlText : errorColor;
-            taxRateText.Font = taxRateValid ? validFont : errorFont;
+            editor.Document.date = ((DateTime)invoiceDate.DateValue).ToLocalTime();
+            editor.SetDirty();
+            RefreshWindowTitle();
         }
 
-        string InvoiceFilePath
+        void OnInvoiceNumberChanged(object sender, EventArgs args)
         {
-            get {
-                var applicationSupport = NSFileManager.DefaultManager.GetUrls(
-                    NSSearchPathDirectory.ApplicationSupportDirectory,
-                    NSSearchPathDomain.User)[0].Path;
-                
-                return applicationSupport + "/com.showdownsoftware.InvoiceGenerator/invoice.json";
-            }
+            editor.Document.invoiceNumber = invoiceNumberText.IntValue;
+            editor.SetDirty();
+            RefreshWindowTitle();
         }
 
-        void Load()
+        void OnIncrementPressed(object sender, EventArgs args)
         {
-            var invoiceFilePath = InvoiceFilePath;
-
-            try
-            {
-                if(File.Exists(invoiceFilePath))
-                {
-                    var json = File.ReadAllText(invoiceFilePath);
-                    var invoice = JsonReader.Deserialize<Invoice>(json);
-
-                    invoiceDate.DateValue = (NSDate)invoice.date;
-                    invoiceNumberText.IntValue = invoice.invoiceNumber;
-                    consultantText.Value = invoice.consultant;
-                    clientText.Value = invoice.client;
-                    filenameText.StringValue = invoice.filename;
-                    servicesText.Value = invoice.services;
-                    hoursText.StringValue = string.Join(", ", invoice.hours.Select(f => f.ToString("0.0#")));
-                    rateText.FloatValue = invoice.rate;
-                    taxRateText.FloatValue = invoice.taxRate;
-                }
-            }
-            catch(Exception ex) {
-                MessageBox.Show("Error", "'invoice.json' could not be loaded.\n\n" + ex.Message);
-            }
+            editor.Document.invoiceNumber += 1;
+            editor.SetDirty();
+            invoiceNumberText.IntValue = editor.Document.invoiceNumber;
+            RefreshWindowTitle();
         }
 
-        void Save()
+        void OnConsultantChanged(object sender, EventArgs args)
         {
-            var invoice = new Invoice() {
-                date = ((DateTime)invoiceDate.DateValue).ToLocalTime(),
-                invoiceNumber = invoiceNumberText.IntValue,
-                consultant = consultantText.Value,
-                client = clientText.Value,
-                filename = filenameText.StringValue,
-                services = servicesText.Value,
-                hours = SplitFloatCSV(hoursText.StringValue),
-                rate = rateText.FloatValue,
-                taxRate = taxRateText.FloatValue
-            };
+            editor.Document.consultant = consultantText.Value;
+            editor.SetDirty();
+            RefreshWindowTitle();
+        }
 
-            var settings = new JsonWriterSettings(){ PrettyPrint = true, Tab = "  " };
-            var json = JsonWriter.Serialize(invoice, settings);
+        void OnClientChanged(object sender, EventArgs args)
+        {
+            editor.Document.client = clientText.Value;
+            editor.SetDirty();
+            RefreshWindowTitle();
+        }
 
-            var dir = Path.GetDirectoryName(InvoiceFilePath);
-            if(!Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
+        void OnServicesChanged(object sender, EventArgs args)
+        {
+            editor.Document.services = servicesText.Value;
+            editor.SetDirty();
+            RefreshWindowTitle();
+        }
+
+        void OnSessionsStartChanged(NSDatePicker datePicker, Session session)
+        {
+            session.start = ((DateTime)datePicker.DateValue).ToLocalTime();
+            editor.SetDirty();
+            RefreshTotals();
+            RefreshWindowTitle();
+        }
+
+        void OnSessionsFinishChanged(NSDatePicker datePicker, Session session)
+        {
+            session.finish = ((DateTime)datePicker.DateValue).ToLocalTime();
+            editor.SetDirty();
+            RefreshTotals();
+            RefreshWindowTitle();
+        }
+
+        void OnRateChanged(object sender, EventArgs args)
+        {
+            editor.Document.rate = rateText.FloatValue;
+            editor.SetDirty();
+            RefreshTotals();
+            RefreshWindowTitle();
+        }
+
+        void OnTaxRateChanged(object sender, EventArgs args)
+        {
+            editor.Document.taxRate = taxRateText.FloatValue;
+            editor.SetDirty();
+            RefreshTotals();
+            RefreshWindowTitle();
+        }
+
+        void OnFilenameChanged(object sender, EventArgs args)
+        {
+            editor.Document.filename = filenameText.StringValue;
+            editor.SetDirty();
+            RefreshWindowTitle();
+        }
+
+        void OnExportPressed(object sender, EventArgs args) {
+            AppDelegate.ExportDocument(GetExportFilename());
+        }
+
+        void OnAddSessionPressed(object sender, EventArgs args)
+        {
+            var date = DateTime.Now.Date;
+
+            if(editor.Document.sessions.Count > 0)
+                date = editor.Document.sessions[editor.Document.sessions.Count - 1].finish;
             
-            File.WriteAllText(InvoiceFilePath, json);
+            editor.Document.sessions.Add(new Session(){ start = date, finish = date });
+            editor.SetDirty();
+            RefreshHours();
+            RefreshTotals();
+            RefreshWindowTitle();
+        }
+
+        void OnRemoveSessionPressed(object sender, EventArgs args)
+        {
+            int row = (int)hoursTable.SelectedRow;
+            if(row >= 0)
+            {
+                editor.Document.sessions.RemoveAt(row);
+                editor.SetDirty();
+                RefreshHours();
+                RefreshTotals();
+                RefreshWindowTitle();
+            }
+        }
+
+        public void RefreshInputs()
+        {
+            invoiceDate.DateValue = (NSDate)editor.Document.date;
+            invoiceNumberText.IntValue = editor.Document.invoiceNumber;
+            consultantText.Value = editor.Document.consultant;
+            clientText.Value = editor.Document.client;
+            servicesText.Value = editor.Document.services;
+            rateText.FloatValue = editor.Document.rate;
+            taxRateText.FloatValue = editor.Document.taxRate;
+            filenameText.StringValue = editor.Document.filename;
+        }
+
+        public void RefreshHours()
+        {
+            var sel = hoursTable.SelectedRow;
+            sessionListDataSource.sessions = editor.Document.sessions;
+            hoursTable.ReloadData();
+            hoursTable.SelectRow(sel, false);
+        }
+
+        public void RefreshTotals()
+        {
+            totalHoursText.StringValue = editor.Document.TotalHours.ToString("0.0#");
+            subtotalText.StringValue = editor.Document.Subtotal.ToString("N2");
+            taxAmountText.StringValue = editor.Document.Tax.ToString("N2");
+            totalPriceText.StringValue = editor.Document.Total.ToString("C2");
+        }
+
+        public void RefreshWindowTitle()
+        {
+            var star = editor.Dirty ? "*" : "";
+            var filename = !string.IsNullOrEmpty(editor.DocumentPath) ? Path.GetFileName(editor.DocumentPath) : "Untitled";
+            var title = $"{star}{WindowTitle} - {filename}";
+            NSApplication.SharedApplication.KeyWindow.Title = title;
+        }
+
+        public void RefreshAll()
+        {
+            RefreshInputs();
+            RefreshHours();
+            RefreshTotals();
+            RefreshWindowTitle();
+        }
+
+        public string GetExportFilename()
+        {
+            var invoiceNumberString = editor.Document.invoiceNumber.ToString("0000");
+            var dateString = editor.Document.date.ToString("yyyy_MM_dd");
+
+            var exportFilename = filenameText.StringValue;
+            exportFilename = exportFilename.Replace("$INV", invoiceNumberString);
+            exportFilename = exportFilename.Replace("$DATE", dateString);
+
+            return exportFilename;
         }
 
         float[] SplitFloatCSV(string csv)
@@ -169,67 +254,6 @@ namespace InvoiceGenerator
             catch(Exception) {
                 return new float[0];
             }
-        }
-
-        public void UpdatePrice(object sender, EventArgs args)
-        {
-            float hours = SplitFloatCSV(hoursText.StringValue).Sum();
-            float rate = rateText.FloatValue;
-            float taxRate = taxRateText.FloatValue / 100.0f;
-
-            float subtotal = hours * rate;
-            float taxAmount = subtotal * taxRate;
-            float total = subtotal + taxAmount;
-
-            totalHoursText.StringValue = hours.ToString("0.0#");
-            subtotalText.StringValue = subtotal.ToString("N2");
-            taxAmountText.StringValue = taxAmount.ToString("N2");
-            totalPriceText.StringValue = total.ToString("C2");
-        }
-
-        public void OnSavePressed(object sender, EventArgs args)
-        {
-            var date = ((DateTime)invoiceDate.DateValue).ToLocalTime();
-
-            var invoiceNumberString = invoiceNumberText.IntValue.ToString("0000");
-            var dateString = date.ToString("yyyy_MM_dd");
-
-            var filename = filenameText.StringValue;
-            filename = filename.Replace("$INV", invoiceNumberString);
-            filename = filename.Replace("$DATE", dateString);
-
-            NSSavePanel sp = NSSavePanel.SavePanel;
-            sp.AllowedFileTypes = new string[] { "docx" };
-            sp.Directory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            sp.NameFieldStringValue = filename;
-
-            var ret = sp.RunModal();
-            if(ret != 0)
-            {
-                string path = NSBundle.MainBundle.PathForResource("template.docx", null);
-
-                using(DocX doc = DocX.Load(path))
-                {
-                    doc.ReplaceText("[DATE]", date.ToString("yyyy-MM-dd"));
-                    doc.ReplaceText("[INVOICE]", invoiceNumberString);
-                    doc.ReplaceText("[CONSULTANT]", consultantText.Value);
-                    doc.ReplaceText("[CLIENT]", clientText.Value);
-                    doc.ReplaceText("[SERVICE]", servicesText.Value);
-                    doc.ReplaceText("[ITEM]", subtotalText.StringValue);
-                    doc.ReplaceText("[TOTAL_HOURS]", totalHoursText.StringValue);
-                    doc.ReplaceText("[SUBTOT]", subtotalText.StringValue);
-                    doc.ReplaceText("[TAX]", taxAmountText.StringValue);
-                    doc.ReplaceText("[TOTAL]", totalPriceText.StringValue);
-                    doc.SaveAs(sp.Url.Path);
-                }
-
-                Save();
-            }
-        }
-
-        public override NSObject RepresentedObject {
-            get { return base.RepresentedObject; }
-            set { base.RepresentedObject = value; }
         }
     }
 }

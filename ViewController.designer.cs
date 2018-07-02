@@ -13,16 +13,22 @@ namespace InvoiceGenerator
 	partial class ViewController
 	{
 		[Outlet]
+		AppKit.NSButton addSessionButton { get; set; }
+
+		[Outlet]
 		AppKit.NSTextView clientText { get; set; }
 
 		[Outlet]
 		AppKit.NSTextView consultantText { get; set; }
 
 		[Outlet]
+		AppKit.NSButton exportButton { get; set; }
+
+		[Outlet]
 		AppKit.NSTextField filenameText { get; set; }
 
 		[Outlet]
-		AppKit.NSTextField hoursText { get; set; }
+		AppKit.NSTableView hoursTable { get; set; }
 
 		[Outlet]
 		AppKit.NSButton incrementButton { get; set; }
@@ -37,10 +43,7 @@ namespace InvoiceGenerator
 		AppKit.NSTextField rateText { get; set; }
 
 		[Outlet]
-		AppKit.NSButton revertButton { get; set; }
-
-		[Outlet]
-		AppKit.NSButton saveButton { get; set; }
+		AppKit.NSButton removeSessionButton { get; set; }
 
 		[Outlet]
 		AppKit.NSTextView servicesText { get; set; }
@@ -62,6 +65,11 @@ namespace InvoiceGenerator
 		
 		void ReleaseDesignerOutlets ()
 		{
+			if (addSessionButton != null) {
+				addSessionButton.Dispose ();
+				addSessionButton = null;
+			}
+
 			if (clientText != null) {
 				clientText.Dispose ();
 				clientText = null;
@@ -72,14 +80,19 @@ namespace InvoiceGenerator
 				consultantText = null;
 			}
 
+			if (exportButton != null) {
+				exportButton.Dispose ();
+				exportButton = null;
+			}
+
 			if (filenameText != null) {
 				filenameText.Dispose ();
 				filenameText = null;
 			}
 
-			if (hoursText != null) {
-				hoursText.Dispose ();
-				hoursText = null;
+			if (hoursTable != null) {
+				hoursTable.Dispose ();
+				hoursTable = null;
 			}
 
 			if (incrementButton != null) {
@@ -102,14 +115,9 @@ namespace InvoiceGenerator
 				rateText = null;
 			}
 
-			if (revertButton != null) {
-				revertButton.Dispose ();
-				revertButton = null;
-			}
-
-			if (saveButton != null) {
-				saveButton.Dispose ();
-				saveButton = null;
+			if (removeSessionButton != null) {
+				removeSessionButton.Dispose ();
+				removeSessionButton = null;
 			}
 
 			if (servicesText != null) {
