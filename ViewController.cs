@@ -59,7 +59,9 @@ namespace InvoiceGenerator
         public override void ViewWillAppear()
         {
             base.ViewWillAppear();
-            RefreshAll();
+            RefreshInputs();
+            RefreshHours();
+            RefreshTotals();
         }
 
         public override void ViewWillDisappear()
@@ -70,6 +72,12 @@ namespace InvoiceGenerator
         public override void ViewDidDisappear()
         {
             base.ViewDidDisappear();
+        }
+
+        public override void ViewDidAppear()
+        {
+            base.ViewDidAppear();
+            RefreshWindowTitle();
         }
 
         void OnDateChanged(object sender, EventArgs args)
